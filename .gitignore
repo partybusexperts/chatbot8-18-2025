@@ -1,0 +1,18 @@
+# Node
+node_modules/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# VSCode
+.vscode/
+
+# Data
+*.csv
+!vehicles-sample.csv
+
+# OS
+.DS_Store
+Thumbs.db
