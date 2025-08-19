@@ -8,6 +8,7 @@ import os
 app = FastAPI()
 
 # Enable CORS for frontend
+# Test change: this comment is for verifying git commit and sync
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
