@@ -11,6 +11,7 @@ __pycache__/
 
 # Data
 *.csv
+!vehicles.csv
 !vehicles-sample.csv
 
 # OS
