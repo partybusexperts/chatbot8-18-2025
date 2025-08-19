@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { fetchQuote, QuoteRequest } from '../lib/api';
 
 const VEHICLE_IMAGES: Record<string, string> = {
-  'Party Bus': 'https://img.icons8.com/color/96/party-bus.png',
-  'Limousine': 'https://img.icons8.com/color/96/limousine.png',
-  'Shuttle Bus': 'https://img.icons8.com/color/96/bus.png',
+  'party_buses': 'https://img.icons8.com/color/96/party-bus.png',
+  'limousines': 'https://img.icons8.com/color/96/limousine.png',
+  'shuttle_buses': 'https://img.icons8.com/color/96/bus.png',
   'Default': 'https://img.icons8.com/color/96/transportation.png',
 };
 
@@ -94,53 +94,147 @@ export default function HomePage() {
       {error && <div className="text-red-600 mb-4 text-center font-semibold">{error}</div>}
       {result && (
         <section aria-label="Quote results">
-          <h2 className="text-2xl font-bold mb-4 text-blue-800">Top 3 Options</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <h2 className="text-2xl font-bold mb-4 text-blue-800 border-b pb-2">Top 3 Vehicle Choices</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             {result.main_options.map((v: any, i: number) => {
-              const type = v.type || v.category || 'Default';
-              const img = VEHICLE_IMAGES[type] || VEHICLE_IMAGES['Default'];
+              const type = v.category || 'Default';
+              const img = v.image && v.image.trim() ? v.image : (VEHICLE_IMAGES[type] || VEHICLE_IMAGES['Default']);
+              const h = hours;
+              const priceTable = v.price_table || {};
               return (
-                <div key={i} className="rounded-xl shadow-lg bg-white p-5 flex flex-col items-center hover:scale-105 transition">
-                  <img src={img} alt={type} className="w-20 h-20 mb-2" />
-                  <div className="font-bold text-lg mb-1 text-center">{v.name}</div>
-                  <span className={`inline-block px-2 py-1 mb-2 rounded text-xs font-semibold ${type === 'Party Bus' ? 'bg-pink-200 text-pink-800' : type === 'Limousine' ? 'bg-purple-200 text-purple-800' : type === 'Shuttle Bus' ? 'bg-green-200 text-green-800' : 'bg-gray-200 text-gray-800'}`}>{type}</span>
-                  <div className="text-gray-700">Capacity: <span className="font-semibold">{v.capacity}</span></div>
-                  <div className="text-blue-700 font-bold text-xl mt-1">${v.price}</div>
+                <div key={i} className="rounded-xl shadow-lg bg-white p-3 flex flex-col items-center border border-blue-200 hover:border-blue-500 transition min-h-[220px] w-full">
+                  <div className="w-16 h-16 mb-2 flex items-center justify-center bg-gray-100 rounded overflow-hidden border">
+                    <img src={img} alt={v.name} className="object-cover w-full h-full max-w-[64px] max-h-[64px]" onError={e => { (e.target as HTMLImageElement).src = VEHICLE_IMAGES[type] || VEHICLE_IMAGES['Default']; }} />
+                  </div>
+                  <div className="font-bold text-base mb-1 text-center">{v.name}</div>
+                  <span className={`inline-block px-2 py-1 mb-2 rounded text-xs font-semibold uppercase tracking-wide ${type === 'party_buses' ? 'bg-pink-200 text-pink-800' : type === 'limousines' ? 'bg-purple-200 text-purple-800' : type === 'shuttle_buses' ? 'bg-green-200 text-green-800' : 'bg-gray-200 text-gray-800'}`}>{type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                  <div className="text-gray-700 mb-1">Capacity: <span className="font-semibold">{v.capacity}</span></div>
+                  <table className="mt-1 text-xs w-full border rounded bg-gray-50">
+                    <thead>
+                      <tr className="bg-blue-50">
+                        <th className="px-1 py-1">Hours</th>
+                        <th className="px-1 py-1">Price</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[Math.max(1, h-1), h, h+1].map(hr => (
+                        <tr key={hr} className={hr === h ? 'bg-blue-100 font-bold' : ''}>
+                          <td className="px-1 py-1 text-center">{hr}</td>
+                          <td className="px-1 py-1 text-center">{priceTable[String(hr)] !== undefined && priceTable[String(hr)] !== null ? `$${priceTable[String(hr)]}` : <span className="text-gray-400">N/A</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               );
             })}
           </div>
-          <h3 className="text-xl font-semibold mb-3 text-blue-700">More Options</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* All other vehicles in 3 columns below, each with 3-hour price table */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Party Buses */}
             <div>
-              <div className="font-bold mb-2 flex items-center gap-2"><img src={VEHICLE_IMAGES['Party Bus']} alt="Party Bus" className="w-6 h-6" />Party Buses</div>
-              {result.backups.party_buses.map((v: any, i: number) => (
-                <div key={i} className="border rounded p-2 mb-2 bg-pink-50 flex items-center gap-2">
-                  <img src={VEHICLE_IMAGES['Party Bus']} alt="Party Bus" className="w-6 h-6" />
-                  <span className="font-semibold">{v.name}</span>
-                  <span className="ml-auto text-blue-700 font-bold">${v.price}</span>
-                </div>
-              ))}
+              <div className="sticky top-0 z-10 bg-white pb-2 mb-2 border-b flex items-center gap-2"><img src={VEHICLE_IMAGES['party_buses']} alt="Party Bus" className="w-6 h-6" /><span className="font-bold text-pink-800">Party Buses</span></div>
+              {result.backups.party_buses.length === 0 && <div className="text-gray-400 italic">No party buses found.</div>}
+              {result.backups.party_buses.map((v: any, i: number) => {
+                const img = v.image && v.image.trim() ? v.image : VEHICLE_IMAGES['party_buses'];
+                const h = hours;
+                const priceTable = v.price_table || {};
+                return (
+                  <div key={i} className="rounded-lg border-2 border-pink-200 bg-pink-50 p-3 mb-3 flex flex-col gap-1 shadow-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                      <img src={img} alt={v.name} className="w-10 h-10 object-cover rounded border" onError={e => { (e.target as HTMLImageElement).src = VEHICLE_IMAGES['party_buses']; }} />
+                      <div className="font-semibold text-pink-900">{v.name}</div>
+                    </div>
+                    <div className="text-xs text-gray-600">Capacity: {v.capacity}</div>
+                    <table className="mt-1 text-xs w-full border rounded bg-white">
+                      <thead>
+                        <tr className="bg-pink-100">
+                          <th className="px-1 py-1">Hours</th>
+                          <th className="px-1 py-1">Price</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[Math.max(1, h-1), h, h+1].map(hr => (
+                          <tr key={hr} className={hr === h ? 'bg-pink-200 font-bold' : ''}>
+                            <td className="px-1 py-1 text-center">{hr}</td>
+                            <td className="px-1 py-1 text-center">{priceTable[String(hr)] !== undefined && priceTable[String(hr)] !== null ? `$${priceTable[String(hr)]}` : <span className="text-gray-400">N/A</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
             </div>
+            {/* Limousines */}
             <div>
-              <div className="font-bold mb-2 flex items-center gap-2"><img src={VEHICLE_IMAGES['Limousine']} alt="Limousine" className="w-6 h-6" />Limousines</div>
-              {result.backups.limousines.map((v: any, i: number) => (
-                <div key={i} className="border rounded p-2 mb-2 bg-purple-50 flex items-center gap-2">
-                  <img src={VEHICLE_IMAGES['Limousine']} alt="Limousine" className="w-6 h-6" />
-                  <span className="font-semibold">{v.name}</span>
-                  <span className="ml-auto text-blue-700 font-bold">${v.price}</span>
-                </div>
-              ))}
+              <div className="sticky top-0 z-10 bg-white pb-2 mb-2 border-b flex items-center gap-2"><img src={VEHICLE_IMAGES['limousines']} alt="Limousine" className="w-6 h-6" /><span className="font-bold text-purple-800">Limousines</span></div>
+              {result.backups.limousines.length === 0 && <div className="text-gray-400 italic">No limousines found.</div>}
+              {result.backups.limousines.map((v: any, i: number) => {
+                const img = v.image && v.image.trim() ? v.image : VEHICLE_IMAGES['limousines'];
+                const h = hours;
+                const priceTable = v.price_table || {};
+                return (
+                  <div key={i} className="rounded-lg border-2 border-purple-200 bg-purple-50 p-3 mb-3 flex flex-col gap-1 shadow-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                      <img src={img} alt={v.name} className="w-10 h-10 object-cover rounded border" onError={e => { (e.target as HTMLImageElement).src = VEHICLE_IMAGES['limousines']; }} />
+                      <div className="font-semibold text-purple-900">{v.name}</div>
+                    </div>
+                    <div className="text-xs text-gray-600">Capacity: {v.capacity}</div>
+                    <table className="mt-1 text-xs w-full border rounded bg-white">
+                      <thead>
+                        <tr className="bg-purple-100">
+                          <th className="px-1 py-1">Hours</th>
+                          <th className="px-1 py-1">Price</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[Math.max(1, h-1), h, h+1].map(hr => (
+                          <tr key={hr} className={hr === h ? 'bg-purple-200 font-bold' : ''}>
+                            <td className="px-1 py-1 text-center">{hr}</td>
+                            <td className="px-1 py-1 text-center">{priceTable[String(hr)] !== undefined && priceTable[String(hr)] !== null ? `$${priceTable[String(hr)]}` : <span className="text-gray-400">N/A</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
             </div>
+            {/* Shuttle Buses */}
             <div>
-              <div className="font-bold mb-2 flex items-center gap-2"><img src={VEHICLE_IMAGES['Shuttle Bus']} alt="Shuttle Bus" className="w-6 h-6" />Shuttle Buses</div>
-              {result.backups.shuttle_buses.map((v: any, i: number) => (
-                <div key={i} className="border rounded p-2 mb-2 bg-green-50 flex items-center gap-2">
-                  <img src={VEHICLE_IMAGES['Shuttle Bus']} alt="Shuttle Bus" className="w-6 h-6" />
-                  <span className="font-semibold">{v.name}</span>
-                  <span className="ml-auto text-blue-700 font-bold">${v.price}</span>
-                </div>
-              ))}
+              <div className="sticky top-0 z-10 bg-white pb-2 mb-2 border-b flex items-center gap-2"><img src={VEHICLE_IMAGES['shuttle_buses']} alt="Shuttle Bus" className="w-6 h-6" /><span className="font-bold text-green-800">Shuttle Buses</span></div>
+              {result.backups.shuttle_buses.length === 0 && <div className="text-gray-400 italic">No shuttle buses found.</div>}
+              {result.backups.shuttle_buses.map((v: any, i: number) => {
+                const img = v.image && v.image.trim() ? v.image : VEHICLE_IMAGES['shuttle_buses'];
+                const h = hours;
+                const priceTable = v.price_table || {};
+                return (
+                  <div key={i} className="rounded-lg border-2 border-green-200 bg-green-50 p-3 mb-3 flex flex-col gap-1 shadow-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                      <img src={img} alt={v.name} className="w-10 h-10 object-cover rounded border" onError={e => { (e.target as HTMLImageElement).src = VEHICLE_IMAGES['shuttle_buses']; }} />
+                      <div className="font-semibold text-green-900">{v.name}</div>
+                    </div>
+                    <div className="text-xs text-gray-600">Capacity: {v.capacity}</div>
+                    <table className="mt-1 text-xs w-full border rounded bg-white">
+                      <thead>
+                        <tr className="bg-green-100">
+                          <th className="px-1 py-1">Hours</th>
+                          <th className="px-1 py-1">Price</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[Math.max(1, h-1), h, h+1].map(hr => (
+                          <tr key={hr} className={hr === h ? 'bg-green-200 font-bold' : ''}>
+                            <td className="px-1 py-1 text-center">{hr}</td>
+                            <td className="px-1 py-1 text-center">{priceTable[String(hr)] !== undefined && priceTable[String(hr)] !== null ? `$${priceTable[String(hr)]}` : <span className="text-gray-400">N/A</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>

@@ -1,147 +1,168 @@
-# Yet another tiny test change for Vercel sync
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Optional, Dict, Any
+from pydantic import BaseModel
 import pandas as pd
-from datetime import datetime
 import os
+import math
 
 app = FastAPI()
 
-# Enable CORS for frontend
-# Test change: this comment is for verifying git commit and sync
-# Another tiny test change for Vercel sync
+# Allow CORS for local dev and Vercel
 app.add_middleware(
+  CORSMiddleware,
+  allow_origins=["*"],
+  allow_credentials=True,
+  allow_methods=["*"],
+  allow_headers=["*"],
+)
+
+CSV_PATH = os.path.join(os.path.dirname(__file__), '..', 'vehicles_sample.csv')
+
+class Vehicle(BaseModel):
+  name: str
+  zip: str
+  capacity: int
+  price: float | None = None
+  price_table: dict[str, float | None] = {}
+  category: str
+  image: str = ""
+  city: str = ""
+
+class QuoteResponse(BaseModel):
+  main_options: list[Vehicle]
+  backups: dict[str, list[Vehicle]]
+
+def safe_int(val, default=0):
+  try:
+    if pd.isna(val) or val is None:
+      return default
+    return int(float(val))
+  except Exception:
+    return default
+
+def load_vehicles():
+  try:
+    df = pd.read_csv(CSV_PATH)
+  except Exception as e:
+    raise RuntimeError(f"Could not load vehicles.csv: {e}")
+  vehicles = []
+  for _, row in df.iterrows():
+    price_table = {}
+    for h in [1,2,3,4,5,6,7,8,9,10]:
+      col = f"{h}_hour"
+      if col in row:
+        price_table[str(h)] = row.get(col, None)
+    vehicles.append(Vehicle(
+      name=row.get('name', ''),
+      zip=str(row.get('zip', '')),
+      capacity=safe_int(row.get('capacity', 0)),
+      price=row.get('price', None),
+      price_table=price_table,
+      category=row.get('category', ''),
+      image=row.get('image', ''),
+      city=row.get('city', ''),
+    ))
+  return vehicles
+
+from fastapi.responses import JSONResponse
+import traceback
+@app.get("/quote", response_model=QuoteResponse)
+def quote(
+  zip_code: str = Query(...),
+  passengers: int = Query(...),
+  hours: int = Query(...),
+  date: str = Query(...),
+  event_type: str = Query(None)
+):
+  try:
+    vehicles = load_vehicles()
+  except Exception as e:
+    print("\n--- ERROR in /quote endpoint ---")
+    traceback.print_exc()
+    print("--- END ERROR ---\n")
+    return JSONResponse(status_code=500, content={"error": str(e)})
+  # Filter by zip/city/capacity
+  filtered = [v for v in vehicles if v.capacity >= passengers and (zip_code in v.zip or zip_code in v.city)]
+  # Fallback: just by capacity
+  if not filtered:
+    filtered = [v for v in vehicles if v.capacity >= passengers]
+  # Sort by price for requested hours
+  def get_price(v):
+    return v.price_table.get(str(hours), float('inf')) or float('inf')
+  filtered.sort(key=get_price)
+  main_options = filtered[:3]
+  # Backups by category
+  backups = {cat: [v for v in vehicles if v.category==cat and v not in main_options][:5] for cat in ['party_buses','limousines','shuttle_buses']}
+  return QuoteResponse(main_options=main_options, backups=backups)
+
+  app = FastAPI()
+
+  # Allow CORS for local dev and Vercel
+  app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)
+  )
 
-# Load vehicle data once at startup for performance
-VEHICLE_CSV = os.path.join(os.path.dirname(__file__), '../vehicles.csv')
-vehicles_df = pd.read_csv(VEHICLE_CSV, dtype=str).fillna("")
+  CSV_PATH = os.path.join(os.path.dirname(__file__), '..', 'vehicles.csv')
 
-# Helper: prom logic
-PROM_MONTHS = {3, 4, 5}
-def is_prom(date: str, event_type: str = "") -> bool:
-    try:
-        dt = datetime.strptime(date, "%Y-%m-%d")
-        if dt.month in PROM_MONTHS and dt.weekday() == 5:  # Saturday
-            return True
-    except Exception:
-        pass
-    if 'prom' in event_type.lower() or 'dance' in event_type.lower():
-        return True
-    return False
+  class Vehicle(BaseModel):
+    name: str
+    zip: str
+    capacity: int
+    price: float | None = None
+    price_table: dict[str, float | None] = {}
+    category: str
+    image: str = ""
+    city: str = ""
 
-def get_vehicle_name(row):
-    return row.get('vehicle_title', row.get('name', ''))
+  class QuoteResponse(BaseModel):
+    main_options: list[Vehicle]
+    backups: dict[str, list[Vehicle]]
 
-def get_zip_codes(row):
-    return str(row.get('zip', ''))
+  def load_vehicles():
+    df = pd.read_csv(CSV_PATH)
+    vehicles = []
+    for _, row in df.iterrows():
+      price_table = {}
+      for h in [1,2,3,4,5,6,7,8,9,10]:
+        col = f"{h}_hour"
+        if col in row:
+          price_table[str(h)] = row.get(col, None)
+      vehicles.append(Vehicle(
+        name=row.get('name', ''),
+        zip=str(row.get('zip', '')),
+        capacity=int(row.get('capacity', 0)),
+        price=row.get('price', None),
+        price_table=price_table,
+        category=row.get('category', ''),
+        image=row.get('image', ''),
+        city=row.get('city', ''),
+      ))
+    return vehicles
 
-def get_capacity(row):
-    try:
-        return int(row.get('capacity', '0'))
-    except Exception:
-        return 0
-
-def get_category(row):
-    cats = row.get('categories', '').lower()
-    if 'party' in cats:
-        return 'party_buses'
-    if 'limo' in cats:
-        return 'limousines'
-    if 'shuttle' in cats or 'coach' in cats:
-        return 'shuttle_buses'
-    return 'other'
-
-def get_price(row, hours, prom, before5pm):
-    # Prom logic
-    if prom:
-        col = f'prom_price_{hours}hr'
-        if col in row and row[col]:
-            try:
-                return float(row[col])
-            except Exception:
-                pass
-        # fallback to prom_price_6hr if not found
-        if 'prom_price_6hr' in row and row['prom_price_6hr']:
-            try:
-                return float(row['prom_price_6hr'])
-            except Exception:
-                pass
-    # Before 5pm logic
-    if before5pm:
-        col = f'before5pm_{hours}hr'
-        if col in row and row[col]:
-            try:
-                return float(row[col])
-            except Exception:
-                pass
-    # Standard pricing
-    col = f'price_{hours}hr'
-    if col in row and row[col]:
-        try:
-            return float(row[col])
-        except Exception:
-            pass
-    return None
-
-@app.get("/quote")
-def get_quote(
-    zip_code: str = Query(..., description="Pickup zip code"),
-    passengers: int = Query(..., description="Passenger count"),
-    hours: int = Query(..., description="Requested hours"),
-    date: str = Query(..., description="Event date (YYYY-MM-DD)"),
-    event_type: str = Query("", description="Event type (prom, wedding, etc.)")
-) -> Dict[str, Any]:
-    # Filter by zip code
-    filtered = vehicles_df[vehicles_df['zip'].astype(str).str.contains(str(zip_code), na=False)]
-    if filtered.empty:
-        return {"main_options": [], "backups": {"party_buses": [], "limousines": [], "shuttle_buses": []}}
-
-    prom = is_prom(date, event_type)
-    before5pm = False  # You can add logic to set this based on city/time if needed
-
-    # Build result list with robust error handling
-    results = []
-    for _, row in filtered.iterrows():
-        try:
-            cap = get_capacity(row)
-            if cap < passengers:
-                continue
-            price = get_price(row, hours, prom, before5pm)
-            if price is None:
-                continue
-            results.append({
-                'name': get_vehicle_name(row),
-                'zip': get_zip_codes(row),
-                'capacity': cap,
-                'price': price,
-                'category': get_category(row),
-                'image': row.get('image_main', ''),
-                'city': row.get('city', ''),
-            })
-        except Exception:
-            continue
-
-    # Sort by closest capacity >= passengers, then price
-    results = sorted(results, key=lambda x: (x['capacity'], x['price']))
-
-    # Main 3 options
-    main_options = results[:3]
-
-    # Backup columns
-    backups = {'party_buses': [], 'limousines': [], 'shuttle_buses': []}
-    for v in results:
-        cat = v['category']
-        if cat in backups:
-            backups[cat].append(v)
-
-    return {
-        "main_options": main_options,
-        "backups": backups
-    }
+  @app.get("/quote", response_model=QuoteResponse)
+  def quote(
+    zip_code: str = Query(...),
+    passengers: int = Query(...),
+    hours: int = Query(...),
+    date: str = Query(...),
+    event_type: str = Query(None)
+  ):
+    vehicles = load_vehicles()
+    # Filter by zip/city/capacity
+    filtered = [v for v in vehicles if v.capacity >= passengers and (zip_code in v.zip or zip_code in v.city)]
+    # Fallback: just by capacity
+    if not filtered:
+      filtered = [v for v in vehicles if v.capacity >= passengers]
+    # Sort by price for requested hours
+    def get_price(v):
+      return v.price_table.get(str(hours), float('inf')) or float('inf')
+    filtered.sort(key=get_price)
+    main_options = filtered[:3]
+    # Backups by category
+    backups = {cat: [v for v in vehicles if v.category==cat and v not in main_options][:5] for cat in ['party_buses','limousines','shuttle_buses']}
+    return QuoteResponse(main_options=main_options, backups=backups)
+  const [eventType, setEventType] = useState<string>("Birthday");
